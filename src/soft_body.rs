@@ -6,15 +6,18 @@ use bevy::{
     render::render_asset::RenderAssetUsages,
 };
 use bevy::window::PrimaryWindow;
-// use rand::Rng;
+use rand::Rng;
 
 use crate:: settings:: *;
+use crate:: tetris_pieces:: *;
 
 pub struct SBPlugin;
 
 impl Plugin for SBPlugin{
     fn build(&self, app: &mut App){
         app
+        .insert_resource(create_tetris_pieces())
+        // .insert_resource(temp_struct{value: 1})
         .add_systems(Update, (spawn_sb, update_processes, update_sb_draw, update_sb_mesh))
         .add_systems(Update, interact);
     }
@@ -246,6 +249,18 @@ impl TriangleIndex{
     fn new(i1:u32, i2:u32, i3:u32) -> Self{
         Self{i1, i2, i3}
     }
+}
+
+fn vertices_to_sbnodes(piece_container: &PieceInfoContainer) -> Vec<SBNode>{
+    return piece_container.vertices.iter().map(|vertex| SBNode::new(*vertex)).collect();
+}
+
+fn connections_to_sbconnections(piece_container: &PieceInfoContainer) -> Vec<SBConnection>{
+    return piece_container.connections.iter().map(|connection| SBConnection::new(connection.0 as usize, connection.1 as usize, connection.2, connection.3)).collect();
+}
+
+fn triangles_to_triangleindex(piece_container: &PieceInfoContainer) -> Vec<TriangleIndex>{
+    return piece_container.triangle_connections.iter().map(|t_connection| TriangleIndex::new(t_connection.0, t_connection.1, t_connection.2)).collect();
 }
 
 
@@ -546,6 +561,7 @@ fn create_soft_body_mesh(
 fn spawn_sb(
     mut commands: Commands,
     input: Res<ButtonInput<KeyCode>>,
+    tetris_pieces_info: Res<TetrisPiecesInfo>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ){
@@ -553,149 +569,18 @@ fn spawn_sb(
         return;
     }
 
-    // let parent = parent.single();
+    let mut rng = rand::thread_rng();
 
-    let shape = Mesh2dHandle(meshes.add(Circle::new(NODE_RADIUS)));
-    
-    let color = Color::rgb(1.0, 1.0, 1.0);
+    let random_color_index = rng.gen_range(0..tetris_pieces_info.color_num) as usize;
+    let random_piece_index = rng.gen_range(0..tetris_pieces_info.piece_num) as usize;
 
-    // cube
-    // let node_vec = vec![
-    //     SBNode::new(Vec2::new(-DEFAULT_RESTING_LENGTH/2.0, DEFAULT_RESTING_LENGTH/2.0)),
-    //     SBNode::new(Vec2::new(DEFAULT_RESTING_LENGTH/2.0, DEFAULT_RESTING_LENGTH/2.0)),
-    //     SBNode::new(Vec2::new(-DEFAULT_RESTING_LENGTH/2.0, -DEFAULT_RESTING_LENGTH/2.0)),
-    //     SBNode::new(Vec2::new(DEFAULT_RESTING_LENGTH/2.0, -DEFAULT_RESTING_LENGTH/2.0)),
-    // ];
+    let random_tetris_piece = &tetris_pieces_info.pieces[random_piece_index];
 
-    // let connection_vec = vec![
-    //     SBConnection::new(0, 1, true, DEFAULT_RESTING_LENGTH),
-    //     SBConnection::new(0, 2, true, DEFAULT_RESTING_LENGTH),
-    //     SBConnection::new(1, 3, true, DEFAULT_RESTING_LENGTH),
-    //     SBConnection::new(2, 3, true, DEFAULT_RESTING_LENGTH),
-    //     SBConnection::new(0, 3, false, (DEFAULT_RESTING_LENGTH*DEFAULT_RESTING_LENGTH*2.0).sqrt()),
-    //     SBConnection::new(1, 2, false, (DEFAULT_RESTING_LENGTH*DEFAULT_RESTING_LENGTH*2.0).sqrt())
-    // ];
+    let random_color = tetris_pieces_info.colors[random_color_index];
 
-    // triangle
-    // let node_vec = vec![
-    //     SBNode::new(Vec2::new(0.0, 0.433 * DEFAULT_RESTING_LENGTH)),
-    //     SBNode::new(Vec2::new(-0.5*DEFAULT_RESTING_LENGTH, -0.433 * DEFAULT_RESTING_LENGTH)),
-    //     SBNode::new(Vec2::new(0.5*DEFAULT_RESTING_LENGTH, -0.433 * DEFAULT_RESTING_LENGTH)),
-    // ];
-
-    // let connection_vec = vec![
-    //     SBConnection::new(0,1,true, DEFAULT_RESTING_LENGTH),
-    //     SBConnection::new(1,2,true, DEFAULT_RESTING_LENGTH),
-    //     SBConnection::new(2,0,true, DEFAULT_RESTING_LENGTH),
-    // ];
-
-    // rectangle
-    // let node_vec = vec![
-    //     SBNode::new(Vec2::new(-DEFAULT_RESTING_LENGTH/2.0, DEFAULT_RESTING_LENGTH/2.0)),
-    //     SBNode::new(Vec2::new(DEFAULT_RESTING_LENGTH/2.0, DEFAULT_RESTING_LENGTH/2.0)),
-    //     SBNode::new(Vec2::new(-DEFAULT_RESTING_LENGTH/2.0, -DEFAULT_RESTING_LENGTH/2.0)),
-    //     SBNode::new(Vec2::new(DEFAULT_RESTING_LENGTH/2.0, -DEFAULT_RESTING_LENGTH/2.0)),
-    //     SBNode::new(Vec2::new(-DEFAULT_RESTING_LENGTH/2.0, -DEFAULT_RESTING_LENGTH)),
-    //     SBNode::new(Vec2::new(DEFAULT_RESTING_LENGTH/2.0, -DEFAULT_RESTING_LENGTH)),
-    // ];
-
-    // let connection_vec = vec![
-    //     SBConnection::new(0, 1, true, DEFAULT_RESTING_LENGTH),
-    //     SBConnection::new(0, 2, true, DEFAULT_RESTING_LENGTH),
-    //     SBConnection::new(1, 3, true, DEFAULT_RESTING_LENGTH),
-    //     SBConnection::new(2, 3, false, DEFAULT_RESTING_LENGTH),
-    //     SBConnection::new(2, 4, true, DEFAULT_RESTING_LENGTH),
-    //     SBConnection::new(3, 5, true, DEFAULT_RESTING_LENGTH),
-    //     SBConnection::new(4, 5, true, DEFAULT_RESTING_LENGTH),
-    //     SBConnection::new(0, 3, false, (DEFAULT_RESTING_LENGTH*DEFAULT_RESTING_LENGTH*2.0).sqrt()),
-    //     SBConnection::new(1, 2, false, (DEFAULT_RESTING_LENGTH*DEFAULT_RESTING_LENGTH*2.0).sqrt()),
-    //     SBConnection::new(2, 5, false, (DEFAULT_RESTING_LENGTH*DEFAULT_RESTING_LENGTH*2.0).sqrt()),
-    //     SBConnection::new(3, 4, false, (DEFAULT_RESTING_LENGTH*DEFAULT_RESTING_LENGTH*2.0).sqrt())
-    // ];
-
-    //tetris 1
-    // let node_vec = vec![
-    //     SBNode::new(Vec2::new(-DEFAULT_RESTING_LENGTH*0.5, DEFAULT_RESTING_LENGTH*0.5)),
-    //     SBNode::new(Vec2::new(DEFAULT_RESTING_LENGTH*0.5, DEFAULT_RESTING_LENGTH*0.5)),
-    //     SBNode::new(Vec2::new(-DEFAULT_RESTING_LENGTH*0.5, -DEFAULT_RESTING_LENGTH*0.5)),
-    //     SBNode::new(Vec2::new(DEFAULT_RESTING_LENGTH*0.5, -DEFAULT_RESTING_LENGTH*0.5)),
-    //     SBNode::new(Vec2::new(-DEFAULT_RESTING_LENGTH*0.5, -DEFAULT_RESTING_LENGTH*1.5)),
-    //     SBNode::new(Vec2::new(DEFAULT_RESTING_LENGTH*0.5, -DEFAULT_RESTING_LENGTH*1.5)),
-    //     SBNode::new(Vec2::new(DEFAULT_RESTING_LENGTH*1.5, -DEFAULT_RESTING_LENGTH*0.5)),
-    //     SBNode::new(Vec2::new(DEFAULT_RESTING_LENGTH*1.5, -DEFAULT_RESTING_LENGTH*1.5)),
-    // ];
-
-    // let connection_vec = vec![
-    //     SBConnection::new(0, 1, true, DEFAULT_RESTING_LENGTH),
-    //     SBConnection::new(0, 2, true, DEFAULT_RESTING_LENGTH),
-    //     SBConnection::new(1, 3, true, DEFAULT_RESTING_LENGTH),
-    //     SBConnection::new(2, 3, false, DEFAULT_RESTING_LENGTH),
-    //     SBConnection::new(2, 4, true, DEFAULT_RESTING_LENGTH),
-    //     SBConnection::new(3, 5, false, DEFAULT_RESTING_LENGTH),
-    //     SBConnection::new(4, 5, true, DEFAULT_RESTING_LENGTH),
-    //     SBConnection::new(3, 6, true, DEFAULT_RESTING_LENGTH),
-    //     SBConnection::new(5, 7, true, DEFAULT_RESTING_LENGTH),
-    //     SBConnection::new(6, 7, true, DEFAULT_RESTING_LENGTH),
-    //     SBConnection::new(0, 3, false, (DEFAULT_RESTING_LENGTH*DEFAULT_RESTING_LENGTH*2.0).sqrt()),
-    //     SBConnection::new(1, 2, false, (DEFAULT_RESTING_LENGTH*DEFAULT_RESTING_LENGTH*2.0).sqrt()),
-    //     SBConnection::new(2, 5, false, (DEFAULT_RESTING_LENGTH*DEFAULT_RESTING_LENGTH*2.0).sqrt()),
-    //     SBConnection::new(3, 4, false, (DEFAULT_RESTING_LENGTH*DEFAULT_RESTING_LENGTH*2.0).sqrt()),
-    //     SBConnection::new(3, 7, false, (DEFAULT_RESTING_LENGTH*DEFAULT_RESTING_LENGTH*2.0).sqrt()),
-    //     SBConnection::new(5, 6, false, (DEFAULT_RESTING_LENGTH*DEFAULT_RESTING_LENGTH*2.0).sqrt())
-    // ];
-
-    // tetris2
-    let node_vec = vec![
-        SBNode::new(Vec2::new(-DEFAULT_RESTING_LENGTH, DEFAULT_RESTING_LENGTH * 1.5)),
-        SBNode::new(Vec2::new(0.0, DEFAULT_RESTING_LENGTH * 1.5)),
-        SBNode::new(Vec2::new(-DEFAULT_RESTING_LENGTH, DEFAULT_RESTING_LENGTH * 0.5)),
-        SBNode::new(Vec2::new(0.0, DEFAULT_RESTING_LENGTH * 0.5)),
-        SBNode::new(Vec2::new(-DEFAULT_RESTING_LENGTH, -DEFAULT_RESTING_LENGTH * 0.5)),
-        SBNode::new(Vec2::new(0.0, -DEFAULT_RESTING_LENGTH * 0.5)),
-        SBNode::new(Vec2::new(-DEFAULT_RESTING_LENGTH, -DEFAULT_RESTING_LENGTH * 1.5)),
-        SBNode::new(Vec2::new(0.0, -DEFAULT_RESTING_LENGTH * 1.5)),
-        SBNode::new(Vec2::new(DEFAULT_RESTING_LENGTH, -DEFAULT_RESTING_LENGTH*0.5)),
-        SBNode::new(Vec2::new(DEFAULT_RESTING_LENGTH, -DEFAULT_RESTING_LENGTH*1.5)),
-    ];
-
-    let connection_vec = vec![
-        SBConnection::new(0, 1, true, DEFAULT_RESTING_LENGTH),
-        SBConnection::new(1, 3, true, DEFAULT_RESTING_LENGTH),
-        SBConnection::new(3, 5, true, DEFAULT_RESTING_LENGTH),
-        SBConnection::new(5, 8, true, DEFAULT_RESTING_LENGTH),
-        SBConnection::new(8, 9, true, DEFAULT_RESTING_LENGTH),
-        SBConnection::new(9, 7, true, DEFAULT_RESTING_LENGTH),
-        SBConnection::new(7, 6, true, DEFAULT_RESTING_LENGTH),
-        SBConnection::new(6, 4, true, DEFAULT_RESTING_LENGTH),
-        SBConnection::new(4, 2, true, DEFAULT_RESTING_LENGTH),
-        SBConnection::new(2, 0, true, DEFAULT_RESTING_LENGTH),
-        SBConnection::new(2, 3, false, DEFAULT_RESTING_LENGTH),
-        SBConnection::new(4, 5, false, DEFAULT_RESTING_LENGTH),
-        SBConnection::new(5, 7, false, DEFAULT_RESTING_LENGTH),
-        SBConnection::new(0, 3, false, DEFAULT_RESTING_LENGTH*1.41),
-        SBConnection::new(1, 2, false, DEFAULT_RESTING_LENGTH*1.41),
-        SBConnection::new(2, 5, false, DEFAULT_RESTING_LENGTH*1.41),
-        SBConnection::new(3, 4, false, DEFAULT_RESTING_LENGTH*1.41),
-        SBConnection::new(4, 7, false, DEFAULT_RESTING_LENGTH*1.41),
-        SBConnection::new(5, 6, false, DEFAULT_RESTING_LENGTH*1.41),
-        SBConnection::new(5, 9, false, DEFAULT_RESTING_LENGTH*1.41),
-        SBConnection::new(7, 8, false, DEFAULT_RESTING_LENGTH*1.41),
-    ];
-
-    let triangle_vec = vec![
-        TriangleIndex::new(0, 1, 2),
-        TriangleIndex::new(1, 2 ,3),
-        TriangleIndex::new(2, 3, 4),
-        TriangleIndex::new(3, 4, 5),
-        TriangleIndex::new(4, 5, 6),
-        TriangleIndex::new(5, 6, 7),
-        TriangleIndex::new(5, 8, 7),
-        TriangleIndex::new(8, 7, 9),
-    ];
-
-    // let base_skeleton = vec![];
-    // let skeleton = vec![];
-
+    let node_vec = vertices_to_sbnodes(random_tetris_piece);
+    let connection_vec = connections_to_sbconnections(random_tetris_piece);
+    let triangle_vec = triangles_to_triangleindex(random_tetris_piece);
 
     let soft_body = SB::new(&node_vec, &connection_vec);
     let mesh_handle = meshes.add(create_soft_body_mesh(&node_vec, &triangle_vec));
@@ -703,7 +588,7 @@ fn spawn_sb(
     commands.spawn((
         MaterialMesh2dBundle {
             mesh: mesh_handle.into(),
-            material: materials.add(ColorMaterial::from(Color::rgb(1.0, 0.4, 0.4))),
+            material: materials.add(ColorMaterial::from(random_color)),
             transform: Transform{
                 translation: Vec3::new(0.0, 0.0, 0.0),
                 ..default()
@@ -740,7 +625,7 @@ fn spawn_sb(
                         ..Default::default()
                     },
                     sprite: Sprite {
-                        color: Color::rgb(0.8, 0.2, 0.2),
+                        color: random_color.mix(&Color::srgb(0.0, 0.0, 0.0), COLOR_SHADING),
                         ..Default::default()
                     },
                     ..Default::default()
@@ -896,27 +781,6 @@ fn skeleton_simulation(
     }
 }
 
-// fn update_sb_mesh (
-//     mut query: Query<(&Transform, &Handle<Mesh>)>,
-//     assets: Res<Assets<Mesh>>
-// ) {
-
-//     let (transform, handle) = query.get_single_mut().expect("");
-//     let mut mesh = assets.get_mut(handle.id); // Error caused here
-//     if mesh.is_some() {
-//         let positions = temp.attribute(Mesh::ATTRIBUTE_POSITION).unwrap();
-//         if let VertexAttributeValues::Float32x3(thing) = positions {
-//             let mut temporary = Vec::new();
-//             for i in thingy {
-//                 let temp = Vec3::new(i[0], i[1], i[2]);
-//                 ... // Modify temp here
-//                 temporary.push(temp);
-//             }
-
-//             mesh.unwrap().insert_attribute(Mesh::ATTRIBUTE_POSITION, temporary);
-//         }
-//     }
-// }
 fn update_sb_mesh(
     mut meshes: ResMut<Assets<Mesh>>,
     query: Query<(&SB, &Mesh2dHandle)>,
@@ -936,46 +800,6 @@ fn update_sb_mesh(
         }
     }
 }
-
-// fn update_soft_body_mesh(
-//     mut commands: Commands,
-//     soft_body_query: Query<(Entity, &Children), With<SoftBody>>, // Query for soft bodies
-//     mut mesh_query: Query<(&mut Mesh, &Handle<Mesh>)>,           // Query for meshes
-// ) {
-//     for (soft_body_entity, children) in &soft_body_query {
-//         for &child in children.iter() {
-//             if let Ok((mut mesh, _mesh_handle)) = mesh_query.get_mut(child) {
-//                 // Update the mesh here
-//                 // update_mesh_vertices(&mut mesh); // Example function to modify vertices
-//                 let mut updated_positions: Vec<[f32; 3]>;
-
-//                 updated_positions.extend(soft_body.nodes.iter().map(|node| [node.read_pos.x, node.read_pos.y, 0.0]));
-
-//                 // Update mesh positions
-//                 mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, updated_positions);
-//             }
-//         }
-//     }
-// }
-
-// fn update_sb_mesh(
-//     mut meshes: ResMut<Assets<Mesh>>,
-//     mut query: Query<(&SB, &Handle<Mesh>)>,
-//     time: Res<Time>,
-// ) {
-//     for (soft_body, mesh_handle) in query.iter_mut() {
-//         println!("something");
-//         // if let Some(mesh) = meshes.get_mut(mesh_handle) {
-//         //     let mut updated_positions: Vec<[f32; 3]>;
-
-//         //     updated_positions.extend(soft_body.nodes.iter().map(|node| [node.read_pos.x, node.read_pos.y, 0.0]));
-
-//         //     // Update mesh positions
-//         //     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, updated_positions);
-//         // }
-//     }
-// }
-
 
 fn update_sb_draw(
     soft_body_query: Query<(&SB, &Children)>,

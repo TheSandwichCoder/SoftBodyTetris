@@ -20,3 +20,5 @@ pub const ITERATION_DELTA : f32 = 1.0 / (ITERATION_COUNT as f32);
 
 pub const PI :f32 = OtherPI;
 pub const TAU :f32 = PI * 2.0;
+
+pub const COLOR_SHADING: f32 = 0.1;

@@ -6,10 +6,12 @@ use bevy::{
 
 use settings::*;
 use soft_body::*;
+use tetris_pieces::*;
 
 // CRATES
 mod settings;
 mod soft_body;
+mod tetris_pieces;
 
 #[derive(Component)]
 struct FpsText;
