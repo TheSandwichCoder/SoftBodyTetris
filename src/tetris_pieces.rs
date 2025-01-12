@@ -20,246 +20,181 @@ pub struct PieceInfoContainer{
     pub triangle_connections: Vec<(u32, u32, u32)>,
 }
 
+pub fn flatten(x: i8, y: i8) -> i8{
+    let i = y*8 + x;
+
+    if i < 0{
+        return 0;
+    }
+
+    return i;
+}
+
+pub fn get_mesh(vertices_bb: u64) -> PieceInfoContainer{
+    let mut vertices_point_bb : u64 = 0;
+
+    let mut first_i = 0;
+    
+    for i in 0..64{
+        let y = i / 8;
+        let x = i % 8;
+        let vertex_present = ((vertices_bb >> flatten(x, y)) & 1) == 1;
+        
+        if vertex_present{
+            println!("i:{}",i+9);
+            first_i = i+9;
+            
+
+            vertices_point_bb |= 1 << flatten(x, y);
+            vertices_point_bb |= 1 << flatten(x, y+1);
+            vertices_point_bb |= 1 << flatten(x+1, y);
+            vertices_point_bb |= 1 << flatten(x+1, y+1);
+        }
+    }
+
+    println!("vertices_point_bb: {:b}", vertices_point_bb);
+
+    let mut curr_i = first_i;
+    let mut prev_i = curr_i;
+
+    let mut horizontal_offset : i8 = 1;
+    let mut vertical_offset : i8 = 1;
+    
+    let mut vertices: Vec<Vec2> = Vec::new();
+    let mut connections: Vec<(u8, u8, bool, f32)> = Vec::new();
+    let mut triangle_connections: Vec<(u32, u32, u32)> = Vec::new();
+
+    let mut vertices_index_array : [usize;64] = [255; 64];
+
+    let mut curr_vertex_index = 0;
+
+    let mut vertices_point_bb_copy = vertices_point_bb;
+
+    // set the starting index
+    vertices_index_array[curr_i as usize] = curr_vertex_index;
+    
+    // this loop goes clockwise and connects the points together
+    while true{
+        let mut have_movement = false;
+
+        let mut curr_x = curr_i % 8;
+        let mut curr_y = curr_i / 8;
+
+        println!("x:{} y:{}", curr_x, curr_y);
+
+        if (vertices_point_bb_copy >> flatten(curr_x + horizontal_offset, curr_y)) & 1 == 1{
+            vertices.push(Vec2::new(curr_x as f32 * DEFAULT_RESTING_LENGTH, curr_y as f32 * DEFAULT_RESTING_LENGTH));
+
+            have_movement = true;
+            curr_x += horizontal_offset;
+        }
+
+        else if (vertices_point_bb_copy >> flatten(curr_x, curr_y + vertical_offset)) & 1 == 1{
+            vertices.push(Vec2::new(curr_x as f32 * DEFAULT_RESTING_LENGTH, curr_y as f32 * DEFAULT_RESTING_LENGTH));
+
+            have_movement = true;
+            curr_y += vertical_offset;
+        }
+
+        if !have_movement || (curr_y * 8 + curr_x < 0){
+            vertical_offset *= -1;
+            horizontal_offset *= -1;
+            
+            continue;
+        }
+
+        curr_vertex_index += 1;
+        curr_i = flatten(curr_x, curr_y);
+
+        // if the index in the array is empty
+        if vertices_index_array[curr_i as usize] == 255{
+            vertices_index_array[curr_i as usize] = curr_vertex_index;
+        }
+
+        // get rid of the square to not go back
+        vertices_point_bb_copy &= !(1 << curr_i);
+
+        connections.push((vertices_index_array[curr_i as usize] as u8, vertices_index_array[prev_i as usize] as u8, true, DEFAULT_RESTING_LENGTH));
+        
+        // quit if it reached to its starting pos
+        if curr_i == first_i{
+            break;
+        }
+
+        prev_i = curr_i;
+    }
+
+    let mut vertices_bb_copy = vertices_bb;
+    while vertices_bb_copy != 0{
+        let lsb = vertices_bb_copy.trailing_zeros();
+
+        let lsb_x = (lsb % 8) as i8;
+        let lsb_y = (lsb / 8) as i8;
+
+        let thing_00 = flatten(lsb_x, lsb_y) as usize;
+        let thing_01 = flatten(lsb_x, lsb_y + 1) as usize;
+        let thing_10 = flatten(lsb_x + 1, lsb_y) as usize;
+        let thing_11 = flatten(lsb_x + 1, lsb_y + 1) as usize;
+
+        // there is a block to the left
+        if 1 << thing_10 & vertices_bb != 0{
+            connections.push((vertices_index_array[thing_10] as u8, vertices_index_array[thing_11] as u8, false, DEFAULT_RESTING_LENGTH));
+        } 
+
+        // block on top
+        if 1 << thing_01 & vertices_bb != 0{
+            connections.push((vertices_index_array[thing_01] as u8, vertices_index_array[thing_11] as u8, false, DEFAULT_RESTING_LENGTH));
+        }
+
+        if vertices_point_bb & (1 << thing_11) != 0{
+            connections.push((vertices_index_array[thing_00] as u8, vertices_index_array[thing_11] as u8, false, 1.41 * DEFAULT_RESTING_LENGTH));
+        }
+
+        if vertices_point_bb & (1 << thing_10) != 0 && vertices_point_bb & (1 << thing_01) != 0{
+            connections.push((vertices_index_array[thing_10] as u8, vertices_index_array[thing_01] as u8, false, 1.41 * DEFAULT_RESTING_LENGTH));
+        
+            // triangles
+            triangle_connections.push((vertices_index_array[thing_00] as u32, vertices_index_array[thing_10] as u32, vertices_index_array[thing_01] as u32));
+        
+            if vertices_point_bb & (1 << thing_11) != 0{
+                triangle_connections.push((vertices_index_array[thing_11] as u32, vertices_index_array[thing_10] as u32, vertices_index_array[thing_01] as u32));
+            }
+        }
+
+        vertices_bb_copy ^= 1 << lsb;
+    }
+
+
+    // for vertex in &vertices{
+    //     println!("vertex: {:?}", vertex);
+    // }
+
+    // for connection in &connections{
+    //     println!("connection: {:?}", connection);
+    // }
+
+    // for triangle in &triangle_connections{
+    //     println!("triangle: {:?}", triangle);
+    // }
+
+    return PieceInfoContainer{
+        vertices: vertices,
+        connections: connections,
+        triangle_connections: triangle_connections,
+    };
+}
+
 pub fn create_tetris_pieces() -> TetrisPiecesInfo{
-    let piece_type_L = PieceInfoContainer{
-        vertices: vec![
-            Vec2::new(-DEFAULT_RESTING_LENGTH, DEFAULT_RESTING_LENGTH * 1.5),
-            Vec2::new(0.0, DEFAULT_RESTING_LENGTH * 1.5),
-            Vec2::new(-DEFAULT_RESTING_LENGTH, DEFAULT_RESTING_LENGTH * 0.5),
-            Vec2::new(0.0, DEFAULT_RESTING_LENGTH * 0.5),
-            Vec2::new(-DEFAULT_RESTING_LENGTH, -DEFAULT_RESTING_LENGTH * 0.5),
-            Vec2::new(0.0, -DEFAULT_RESTING_LENGTH * 0.5),
-            Vec2::new(-DEFAULT_RESTING_LENGTH, -DEFAULT_RESTING_LENGTH * 1.5),
-            Vec2::new(0.0, -DEFAULT_RESTING_LENGTH * 1.5),
-            Vec2::new(DEFAULT_RESTING_LENGTH, -DEFAULT_RESTING_LENGTH*0.5),
-            Vec2::new(DEFAULT_RESTING_LENGTH, -DEFAULT_RESTING_LENGTH*1.5),
-        ],
-    
-        connections: vec![
-            (0, 1, true, DEFAULT_RESTING_LENGTH),
-            (1, 3, true, DEFAULT_RESTING_LENGTH),
-            (3, 5, true, DEFAULT_RESTING_LENGTH),
-            (5, 8, true, DEFAULT_RESTING_LENGTH),
-            (8, 9, true, DEFAULT_RESTING_LENGTH),
-            (9, 7, true, DEFAULT_RESTING_LENGTH),
-            (7, 6, true, DEFAULT_RESTING_LENGTH),
-            (6, 4, true, DEFAULT_RESTING_LENGTH),
-            (4, 2, true, DEFAULT_RESTING_LENGTH),
-            (2, 0, true, DEFAULT_RESTING_LENGTH),
-            (2, 3, false, DEFAULT_RESTING_LENGTH),
-            (4, 5, false, DEFAULT_RESTING_LENGTH),
-            (5, 7, false, DEFAULT_RESTING_LENGTH),
-            (0, 3, false, DEFAULT_RESTING_LENGTH*1.41),
-            (1, 2, false, DEFAULT_RESTING_LENGTH*1.41),
-            (2, 5, false, DEFAULT_RESTING_LENGTH*1.41),
-            (3, 4, false, DEFAULT_RESTING_LENGTH*1.41),
-            (4, 7, false, DEFAULT_RESTING_LENGTH*1.41),
-            (5, 6, false, DEFAULT_RESTING_LENGTH*1.41),
-            (5, 9, false, DEFAULT_RESTING_LENGTH*1.41),
-            (7, 8, false, DEFAULT_RESTING_LENGTH*1.41),
-        ],
-    
-        triangle_connections: vec![
-            (0, 1, 2),
-            (1, 2 ,3),
-            (2, 3, 4),
-            (3, 4, 5),
-            (4, 5, 6),
-            (5, 6, 7),
-            (5, 8, 7),
-            (8, 7, 9),
-        ]
-    };
 
-    let piece_type_miniL = PieceInfoContainer{
-        vertices: vec![
-            Vec2::new(0.0, DEFAULT_RESTING_LENGTH),
-            Vec2::new(DEFAULT_RESTING_LENGTH, DEFAULT_RESTING_LENGTH),
-            Vec2::new(DEFAULT_RESTING_LENGTH, 0.0),
-            Vec2::new(DEFAULT_RESTING_LENGTH, -DEFAULT_RESTING_LENGTH),
-            Vec2::new(0.0, -DEFAULT_RESTING_LENGTH),
-            Vec2::new(-DEFAULT_RESTING_LENGTH, -DEFAULT_RESTING_LENGTH),
-            Vec2::new(-DEFAULT_RESTING_LENGTH, 0.0),
-            Vec2::new(0.0, 0.0),
-        ],
+    let piece_type_L = get_mesh(0b0000000000000000000000000000000000000000000000000000000100000111);
 
-        connections: vec![
-            (0, 1, true, DEFAULT_RESTING_LENGTH),
-            (1, 2, true, DEFAULT_RESTING_LENGTH),
-            (2, 3, true, DEFAULT_RESTING_LENGTH),
-            (3, 4, true, DEFAULT_RESTING_LENGTH),
-            (4, 5, true, DEFAULT_RESTING_LENGTH),
-            (5, 6, true, DEFAULT_RESTING_LENGTH),
-            (6, 7, true, DEFAULT_RESTING_LENGTH),
-            (7, 0, true, DEFAULT_RESTING_LENGTH),
-            (7, 2, false, DEFAULT_RESTING_LENGTH),
-            (7, 4, false, DEFAULT_RESTING_LENGTH),
-            (0, 2, false, DEFAULT_RESTING_LENGTH*1.41),
-            (1, 7, false, DEFAULT_RESTING_LENGTH*1.41),
-            (7, 3, false, DEFAULT_RESTING_LENGTH*1.41),
-            (4, 2, false, DEFAULT_RESTING_LENGTH*1.41),
-            (6, 4, false, DEFAULT_RESTING_LENGTH*1.41),
-            (5, 7, false, DEFAULT_RESTING_LENGTH*1.41),
-        ],
+    let piece_type_miniL = get_mesh(0b0000000000000000000000000000000000000000000000000000000100000011);
 
-        triangle_connections: vec![
-            (0, 1, 2),
-            (0, 7, 2),
-            (7, 2, 3),
-            (7, 3, 4),
-            (6, 7, 4),
-            (6, 5, 4),
-        ]
-    };
+    let piece_type_longt = get_mesh(0b0000000000000000000000000000000000000000000000000000001000000111);
 
-    let piece_type_longt = PieceInfoContainer{
-        vertices: vec![
-            Vec2::new(0.0*DEFAULT_RESTING_LENGTH, 0.0*DEFAULT_RESTING_LENGTH),
-            Vec2::new(1.0*DEFAULT_RESTING_LENGTH, 0.0*DEFAULT_RESTING_LENGTH),
-            Vec2::new(1.0*DEFAULT_RESTING_LENGTH, 1.0*DEFAULT_RESTING_LENGTH),
-            Vec2::new(2.0*DEFAULT_RESTING_LENGTH, 1.0*DEFAULT_RESTING_LENGTH),
-            Vec2::new(2.0*DEFAULT_RESTING_LENGTH, 2.0*DEFAULT_RESTING_LENGTH),
-            Vec2::new(1.0*DEFAULT_RESTING_LENGTH, 2.0*DEFAULT_RESTING_LENGTH),
-            Vec2::new(0.0*DEFAULT_RESTING_LENGTH, 2.0*DEFAULT_RESTING_LENGTH),
-            Vec2::new(-1.0*DEFAULT_RESTING_LENGTH, 2.0*DEFAULT_RESTING_LENGTH),
-            Vec2::new(-1.0*DEFAULT_RESTING_LENGTH, 1.0*DEFAULT_RESTING_LENGTH),
-            Vec2::new(0.0*DEFAULT_RESTING_LENGTH, 1.0*DEFAULT_RESTING_LENGTH),
-        ], 
+    let piece_type_s = get_mesh(0b0000000000000000000000000000000000000000000000000000011000000011);
 
-        connections: vec![
-            (1, 0, true, DEFAULT_RESTING_LENGTH), 
-            (2, 1, true, DEFAULT_RESTING_LENGTH), 
-            (3, 2, true, DEFAULT_RESTING_LENGTH), 
-            (4, 3, true, DEFAULT_RESTING_LENGTH), 
-            (5, 4, true, DEFAULT_RESTING_LENGTH), 
-            (6, 5, true, DEFAULT_RESTING_LENGTH), 
-            (7, 6, true, DEFAULT_RESTING_LENGTH), 
-            (8, 7, true, DEFAULT_RESTING_LENGTH), 
-            (9, 8, true, DEFAULT_RESTING_LENGTH), 
-            (0, 9, true, DEFAULT_RESTING_LENGTH), 
-            (2, 0, false, DEFAULT_RESTING_LENGTH * 1.41), 
-            (9, 1, false, DEFAULT_RESTING_LENGTH * 1.41), 
-            (5, 9, false, DEFAULT_RESTING_LENGTH * 1.41), 
-            (6, 2, false, DEFAULT_RESTING_LENGTH * 1.41), 
-            (4, 2, false, DEFAULT_RESTING_LENGTH * 1.41), 
-            (5, 3, false, DEFAULT_RESTING_LENGTH * 1.41), 
-            (6, 8, false, DEFAULT_RESTING_LENGTH * 1.41), 
-            (7, 9, false, DEFAULT_RESTING_LENGTH * 1.41), 
-            (2, 9, false, DEFAULT_RESTING_LENGTH), 
-            (5, 2, false, DEFAULT_RESTING_LENGTH), 
-            (6, 9, false, DEFAULT_RESTING_LENGTH), 
-        ],
-
-        triangle_connections: vec![
-            (0, 1, 2),
-            (0, 2, 9),
-            (2, 3, 4),
-            (2, 4, 5),
-            (9, 2, 5),
-            (9, 5, 6),
-            (8, 9, 6),
-            (8, 6, 7),
-        ]
-    };
-
-    let piece_type_annoying = PieceInfoContainer{
-        vertices: vec![
-            Vec2::new(0.0*DEFAULT_RESTING_LENGTH, 0.0*DEFAULT_RESTING_LENGTH),
-            Vec2::new(1.0*DEFAULT_RESTING_LENGTH, 0.0*DEFAULT_RESTING_LENGTH),
-            Vec2::new(1.0*DEFAULT_RESTING_LENGTH, 1.0*DEFAULT_RESTING_LENGTH),
-            Vec2::new(2.0*DEFAULT_RESTING_LENGTH, 1.0*DEFAULT_RESTING_LENGTH),
-            Vec2::new(2.0*DEFAULT_RESTING_LENGTH, 2.0*DEFAULT_RESTING_LENGTH),
-            Vec2::new(1.0*DEFAULT_RESTING_LENGTH, 2.0*DEFAULT_RESTING_LENGTH),
-            Vec2::new(0.0*DEFAULT_RESTING_LENGTH, 2.0*DEFAULT_RESTING_LENGTH),
-            Vec2::new(0.0*DEFAULT_RESTING_LENGTH, 1.0*DEFAULT_RESTING_LENGTH),
-            Vec2::new(-1.0*DEFAULT_RESTING_LENGTH, 1.0*DEFAULT_RESTING_LENGTH),
-            Vec2::new(-1.0*DEFAULT_RESTING_LENGTH, 0.0*DEFAULT_RESTING_LENGTH),
-        ],
-        connections: vec![
-            (1, 0, true, DEFAULT_RESTING_LENGTH), 
-            (2, 1, true, DEFAULT_RESTING_LENGTH), 
-            (3, 2, true, DEFAULT_RESTING_LENGTH), 
-            (4, 3, true, DEFAULT_RESTING_LENGTH), 
-            (5, 4, true, DEFAULT_RESTING_LENGTH), 
-            (6, 5, true, DEFAULT_RESTING_LENGTH), 
-            (7, 6, true, DEFAULT_RESTING_LENGTH), 
-            (8, 7, true, DEFAULT_RESTING_LENGTH), 
-            (9, 8, true, DEFAULT_RESTING_LENGTH), 
-            (0, 9, true, DEFAULT_RESTING_LENGTH), 
-            (2, 0, false, DEFAULT_RESTING_LENGTH * 1.41), 
-            (7, 1, false, DEFAULT_RESTING_LENGTH * 1.41), 
-            (5, 7, false, DEFAULT_RESTING_LENGTH * 1.41), 
-            (6, 2, false, DEFAULT_RESTING_LENGTH * 1.41), 
-            (4, 2, false, DEFAULT_RESTING_LENGTH * 1.41), 
-            (5, 3, false, DEFAULT_RESTING_LENGTH * 1.41), 
-            (7, 9, false, DEFAULT_RESTING_LENGTH * 1.41), 
-            (8, 0, false, DEFAULT_RESTING_LENGTH * 1.41), 
-            (7, 0, false, DEFAULT_RESTING_LENGTH), 
-            (2, 7, false, DEFAULT_RESTING_LENGTH), 
-            (5, 2, false, DEFAULT_RESTING_LENGTH), 
-        ],
-
-        triangle_connections: vec![
-            (0, 1, 2),
-            (0, 7, 2),
-            (2, 3, 5),
-            (3, 4, 5),
-            (7, 2, 5),
-            (7, 6, 5),
-            (9, 7, 8),
-            (9, 0, 7),
-        ]
-    };
-
-    let piece_type_long = PieceInfoContainer{
-        vertices: vec![
-            Vec2::new(0.0*DEFAULT_RESTING_LENGTH, 0.0*DEFAULT_RESTING_LENGTH),
-            Vec2::new(0.0*DEFAULT_RESTING_LENGTH, -1.0*DEFAULT_RESTING_LENGTH),
-            Vec2::new(0.0*DEFAULT_RESTING_LENGTH, -2.0*DEFAULT_RESTING_LENGTH),
-            Vec2::new(1.0*DEFAULT_RESTING_LENGTH, -2.0*DEFAULT_RESTING_LENGTH),
-            Vec2::new(1.0*DEFAULT_RESTING_LENGTH, -1.0*DEFAULT_RESTING_LENGTH),
-            Vec2::new(1.0*DEFAULT_RESTING_LENGTH, 0.0*DEFAULT_RESTING_LENGTH),
-            Vec2::new(1.0*DEFAULT_RESTING_LENGTH, 1.0*DEFAULT_RESTING_LENGTH),
-            Vec2::new(1.0*DEFAULT_RESTING_LENGTH, 2.0*DEFAULT_RESTING_LENGTH),
-            Vec2::new(0.0*DEFAULT_RESTING_LENGTH, 2.0*DEFAULT_RESTING_LENGTH),
-            Vec2::new(0.0*DEFAULT_RESTING_LENGTH, 1.0*DEFAULT_RESTING_LENGTH),
-        ], 
-
-        connections: vec![
-            (1, 0, true, DEFAULT_RESTING_LENGTH), 
-            (2, 1, true, DEFAULT_RESTING_LENGTH), 
-            (3, 2, true, DEFAULT_RESTING_LENGTH), 
-            (4, 3, true, DEFAULT_RESTING_LENGTH), 
-            (5, 4, true, DEFAULT_RESTING_LENGTH), 
-            (6, 5, true, DEFAULT_RESTING_LENGTH), 
-            (7, 6, true, DEFAULT_RESTING_LENGTH), 
-            (8, 7, true, DEFAULT_RESTING_LENGTH), 
-            (9, 8, true, DEFAULT_RESTING_LENGTH), 
-            (0, 9, true, DEFAULT_RESTING_LENGTH), 
-            (4, 1, false, DEFAULT_RESTING_LENGTH), 
-            (5, 0, false, DEFAULT_RESTING_LENGTH), 
-            (6, 9, false, DEFAULT_RESTING_LENGTH), 
-            (4, 2, false, DEFAULT_RESTING_LENGTH * 1.41), 
-            (1, 3, false, DEFAULT_RESTING_LENGTH * 1.41), 
-            (5, 1, false, DEFAULT_RESTING_LENGTH * 1.41), 
-            (0, 4, false, DEFAULT_RESTING_LENGTH * 1.41), 
-            (6, 0, false, DEFAULT_RESTING_LENGTH * 1.41), 
-            (9, 5, false, DEFAULT_RESTING_LENGTH * 1.41), 
-            (7, 9, false, DEFAULT_RESTING_LENGTH * 1.41), 
-            (8, 6, false, DEFAULT_RESTING_LENGTH * 1.41), 
-        ],
-
-        triangle_connections: vec![
-            (0, 5, 1),
-            (1, 4, 5),
-            (2, 4, 1),
-            (3, 2, 4),
-            (0, 5, 6),
-            (0, 9, 6),
-            (9, 6, 7),
-            (9, 7, 8),
-        ]
-    };
+    let piece_type_long = get_mesh(0b0000000000000000000000000000000000000000000000000000000000001111);
 
     let colors = vec![
         Color::srgb(1.0, 0.35, 0.35), // red
@@ -272,7 +207,7 @@ pub fn create_tetris_pieces() -> TetrisPiecesInfo{
     ];
 
     return TetrisPiecesInfo{
-        pieces: vec![piece_type_L, piece_type_miniL, piece_type_longt, piece_type_annoying, piece_type_long],
+        pieces: vec![piece_type_L, piece_type_miniL, piece_type_longt, piece_type_s, piece_type_long],
         colors: colors,
         piece_num: 5,
         color_num: 7,
