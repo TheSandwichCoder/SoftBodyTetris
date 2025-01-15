@@ -34,9 +34,11 @@ fn tetris_piece_update(
     mut tetris_board: ResMut<TetrisBoard>,
     soft_body_query: Query<&SB>,
 ){
+    // clear all the arrays that store the clear information
     tetris_board.clear();
     tetris_board.spawn_pieces_vec.clear();
     tetris_board.cleared_pieces_index.clear();
+    tetris_board.cleared_pieces_id.clear();
 
     let mut id_counter = 0;
     for sb in &soft_body_query{
@@ -60,7 +62,7 @@ fn tetris_line_clear_update(
 
             // line clear
             if counter == BOARD_WIDTH{
-                println!("line clear at {}", i / BOARD_WIDTH);
+                println!("line clear at {}", (i-1) / BOARD_WIDTH);
 
                 let mut clear_pieces_index:Vec<u8> = vec![];
                 let mut clear_pieces_id: Vec<u32> = vec![];
@@ -74,7 +76,7 @@ fn tetris_line_clear_update(
                     }
                 }
 
-                tetris_board.cleared_y_level = (i / BOARD_WIDTH) as u8;
+                tetris_board.cleared_y_level = ((i-1) / BOARD_WIDTH) as u8;
                 tetris_board.cleared_pieces_index = clear_pieces_index.clone();
                 tetris_board.cleared_pieces_id = clear_pieces_id.clone();
 
@@ -107,13 +109,24 @@ fn tetris_piece_clear_update(
         let soft_body = sb_vector[*index as usize];
 
         let piece_bb = piece_rotation_types[soft_body.piece_type][soft_body.rotation_index];
+        
+        
+        // gets the rel piece pos
+        // there is an offset because... uhh something about the 
+        let piece_board_pos = piece_pos_to_board_pos(soft_body.bounding_box.min_pos);
 
-        let piece_board_pos = piece_pos_to_board_pos(soft_body.bounding_box.max_pos);
+        println!("PIECE POS INFO: min_pos {}, board_pos {}", soft_body.bounding_box.min_pos, piece_board_pos);
 
         let rel_y = piece_board_pos / BOARD_WIDTH - tetris_board.cleared_y_level as i32;
 
-        let new_bb = piece_bb & !(255 << (rel_y * 8));
+        println!("PIECE MESH GENERATING: rel clear:{}", rel_y);
+        print_bb(piece_bb);
 
+        let new_bb = piece_bb & !(255 << (rel_y * 8));
+        
+        print_bb(new_bb);
+
+        // not a full clear
         if new_bb != 0{
             spawn_piece_vec.push(get_mesh(new_bb));
         }
@@ -136,30 +149,41 @@ fn tetris_piece_spawn_update(
     soft_body_query: Query<&SB>,
 
 ){
-    let sb_vector: Vec<&SB> = soft_body_query.iter().collect();
-
     let mut counter = 0;
 
-    for index in &tetris_board.cleared_pieces_index{
+    // goes through all the ids of the pieces that should be cleared
+    for tetris_piece_id in &tetris_board.cleared_pieces_id{
+
+        // finds mesh associated with the to be cleared piece
         let spawned_tetris_piece_info = &tetris_board.spawn_pieces_vec[counter];
 
+        // null tetris piece (full clear)
         if spawned_tetris_piece_info.vertices.len() == 0{
             counter += 1;
             continue;
         }
 
-        let prev_tetris_piece = sb_vector[*index as usize];
+        let mut prev_tetris_piece = soft_body_query.iter().next().unwrap();
+
+        for sb in &soft_body_query{
+            if *tetris_piece_id == sb.id{
+                prev_tetris_piece = sb;
+                break;
+            }
+        }
         
         let node_vec = vertices_to_sbnodes(spawned_tetris_piece_info);
         let connection_vec = connections_to_sbconnections(spawned_tetris_piece_info);
         let triangle_vec = triangles_to_triangleindex(spawned_tetris_piece_info);
 
-        let mut soft_body = SB::new(&node_vec, &connection_vec, prev_tetris_piece.piece_type);
+        let mut soft_body = SB::new(&node_vec, &connection_vec, prev_tetris_piece.piece_type, prev_tetris_piece.color_index);
 
-        soft_body.move_softbody(prev_tetris_piece.bounding_box.max_pos);
+        println!("move piece id:{} min:{} max:{}", counter, prev_tetris_piece.bounding_box.min_pos, prev_tetris_piece.bounding_box.max_pos);
+
+        soft_body.move_softbody(prev_tetris_piece.bounding_box.min_pos);
         let mesh_handle = meshes.add(create_soft_body_mesh(&node_vec, &triangle_vec));
 
-        let piece_color = tetris_pieces_info.colors[0];
+        let piece_color = tetris_pieces_info.colors[prev_tetris_piece.color_index];
 
         commands.spawn((
             MaterialMesh2dBundle {

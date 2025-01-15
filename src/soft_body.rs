@@ -54,11 +54,13 @@ pub struct SB{
     pub rotation_index: usize,
     pub piece_type: usize,
 
+    pub color_index: usize,
+
     pub id: u32, // I'm not proud of it, but I just want this to be over
 }
 
 impl SB{
-    pub fn new(nodes: &Vec<SBNode>, connections: &Vec<SBConnection>, piece_type: usize) -> Self{
+    pub fn new(nodes: &Vec<SBNode>, connections: &Vec<SBConnection>, piece_type: usize, color_index: usize) -> Self{
         let node_num : u8 = nodes.len() as u8; 
 
         let mut center = Vec2::ZERO;
@@ -94,6 +96,8 @@ impl SB{
             angle_lock_timer: ANGLE_LOCK_COUNTDOWN * ITERATION_COUNT,
             rotation_index: 0,
             piece_type: piece_type,
+            color_index: color_index,
+
             id: rng.gen_range(0..(1<<32-1)),
         };
 
@@ -636,7 +640,7 @@ fn spawn_sb(
     let connection_vec = connections_to_sbconnections(random_tetris_piece);
     let triangle_vec = triangles_to_triangleindex(random_tetris_piece);
 
-    let soft_body = SB::new(&node_vec, &connection_vec, random_piece_index);
+    let soft_body = SB::new(&node_vec, &connection_vec, random_piece_index, random_color_index);
     let mesh_handle = meshes.add(create_soft_body_mesh(&node_vec, &triangle_vec));
 
     commands.spawn((
