@@ -20,6 +20,16 @@ pub struct PieceInfoContainer{
     pub triangle_connections: Vec<(u32, u32, u32)>,
 }
 
+impl PieceInfoContainer{
+    pub fn empty() -> Self{
+        PieceInfoContainer{
+            vertices: Vec::new(),
+            connections: Vec::new(),
+            triangle_connections: Vec::new()
+        }
+    }
+}
+
 pub fn flatten(x: i8, y: i8) -> i8{
     let i = y*8 + x;
 
@@ -31,6 +41,7 @@ pub fn flatten(x: i8, y: i8) -> i8{
 }
 
 pub fn get_mesh(vertices_bb: u64) -> PieceInfoContainer{
+
     let mut vertices_point_bb : u64 = 0;
 
     let mut first_i = 0;
@@ -164,19 +175,6 @@ pub fn get_mesh(vertices_bb: u64) -> PieceInfoContainer{
         vertices_bb_copy ^= 1 << lsb;
     }
 
-
-    // for vertex in &vertices{
-    //     println!("vertex: {:?}", vertex);
-    // }
-
-    // for connection in &connections{
-    //     println!("connection: {:?}", connection);
-    // }
-
-    // for triangle in &triangle_connections{
-    //     println!("triangle: {:?}", triangle);
-    // }
-
     return PieceInfoContainer{
         vertices: vertices,
         connections: connections,
@@ -186,15 +184,15 @@ pub fn get_mesh(vertices_bb: u64) -> PieceInfoContainer{
 
 pub fn create_tetris_pieces() -> TetrisPiecesInfo{
 
-    let piece_type_L = get_mesh(0b0000000000000000000000000000000000000000000000000000000100000111);
+    let piece_type_L = get_mesh(0b100000111);
 
-    let piece_type_miniL = get_mesh(0b0000000000000000000000000000000000000000000000000000000100000011);
+    let piece_type_miniL = get_mesh(0b100000011);
 
-    let piece_type_longt = get_mesh(0b0000000000000000000000000000000000000000000000000000001000000111);
+    let piece_type_longt = get_mesh(0b1000000111);
 
-    let piece_type_s = get_mesh(0b0000000000000000000000000000000000000000000000000000011000000011);
+    let piece_type_s = get_mesh(0b11000000011);
 
-    let piece_type_long = get_mesh(0b0000000000000000000000000000000000000000000000000000000000001111);
+    let piece_type_long = get_mesh(0b1111);
 
     let colors = vec![
         Color::srgb(1.0, 0.35, 0.35), // red
@@ -207,9 +205,18 @@ pub fn create_tetris_pieces() -> TetrisPiecesInfo{
     ];
 
     return TetrisPiecesInfo{
-        pieces: vec![piece_type_L, piece_type_miniL, piece_type_longt, piece_type_s, piece_type_long],
+        pieces: vec![piece_type_L, piece_type_miniL, piece_type_longt, piece_type_s, piece_type_long], //, piece_type_miniL, piece_type_longt, piece_type_s, piece_type_long],
         colors: colors,
         piece_num: 5,
         color_num: 7,
     };
 }
+
+// 1 bb for 4 rotations for each piece type (counter clockwise)
+pub const piece_rotation_types : [[u64; 4]; 5] = [
+    [0b100000111, 0b100000001000000011, 0b11100000100, 0b110000000100000001],
+    [0b100000011, 0b1000000011, 0b1100000010, 0b1100000001],
+    [0b1000000111, 0b100000001100000010, 0b11100000010, 0b10000001100000001],
+    [0b11000000011, 0b10000001100000010, 0b11000000011, 0b10000001100000010],
+    [0b1111, 0b00000001000000010000000100000001, 0b1111, 0b00000001000000010000000100000001],
+];

@@ -8,16 +8,15 @@ use bevy::{
 use bevy::window::PrimaryWindow;
 use rand::Rng;
 
-use crate:: settings:: *;
-use crate:: tetris_pieces:: *;
+use crate::settings::*;
+use crate::tetris_pieces::*;
+use crate::tetris_board::*;
 
 pub struct SBPlugin;
 
 impl Plugin for SBPlugin{
     fn build(&self, app: &mut App){
         app
-        .insert_resource(create_tetris_pieces())
-        // .insert_resource(temp_struct{value: 1})
         .add_systems(Update, (spawn_sb, update_processes, update_sb_draw, update_sb_mesh))
         .add_systems(Update, interact);
     }
@@ -50,10 +49,16 @@ pub struct SB{
     pub bounding_box: BoundingBox,
     pub center: Vec2,
     pub angle: f32,
+    pub angle_lock: bool,
+    pub angle_lock_timer: i32,
+    pub rotation_index: usize,
+    pub piece_type: usize,
+
+    pub id: u32, // I'm not proud of it, but I just want this to be over
 }
 
 impl SB{
-    fn new(nodes: &Vec<SBNode>, connections: &Vec<SBConnection>) -> Self{
+    pub fn new(nodes: &Vec<SBNode>, connections: &Vec<SBConnection>, piece_type: usize) -> Self{
         let node_num : u8 = nodes.len() as u8; 
 
         let mut center = Vec2::ZERO;
@@ -73,6 +78,8 @@ impl SB{
             base_skeleton_norm[i] = (nodes[i].read_pos - center).normalize();
         }
 
+        let mut rng = rand::thread_rng();
+
         let mut sb: SB = SB{
             nodes: nodes.clone(),
             connections: connections.clone(),
@@ -83,11 +90,28 @@ impl SB{
             bounding_box: BoundingBox::zero(),
             center: center,
             angle: 0.0,
+            angle_lock: false,
+            angle_lock_timer: ANGLE_LOCK_COUNTDOWN * ITERATION_COUNT,
+            rotation_index: 0,
+            piece_type: piece_type,
+            id: rng.gen_range(0..(1<<32-1)),
         };
 
         sb.update_skeleton();
 
         return sb;
+    }
+
+    pub fn move_softbody(&mut self, offset: Vec2){
+        for mut node in &mut self.nodes{
+            node.write_pos += offset;
+            node.read_pos = node.write_pos;
+        }
+
+        self.center = self.get_center();
+
+        self.update_bounding_box();
+        self.update_skeleton();
     }
 
     fn get_rel_center(&self, node_index:usize) -> Vec2{
@@ -126,7 +150,7 @@ impl SB{
 
         for i1 in 0..(self.node_num as usize){
             let vec1 = (self.nodes[i1].read_pos - self.center).normalize();
-            let vec2 = self.base_skeleton[i1].normalize();
+            let vec2 = self.base_skeleton_norm[i1];
 
             let dot = vec1.dot(vec2).clamp(-1.0, 1.0);
 
@@ -155,10 +179,40 @@ impl SB{
     fn update_skeleton(&mut self){
         let mut counter: usize = 0;
 
+        self.angle_lock_timer -= 1;
+
+        if self.angle_lock_timer <= 0{
+            self.angle_lock = true;
+        }
+
         for vec in &self.base_skeleton{
             self.skeleton[counter] = vec_rotate(vec, self.angle) + self.center;
 
             counter += 1;
+        }
+    }
+
+    fn update_rotation_index(&mut self){
+        let true_angle: f32;
+        
+        if self.angle > 0.0{
+            true_angle = self.angle;
+        }
+        else{
+            true_angle = TAU + self.angle;
+        }
+        
+        if true_angle > 5.495 || true_angle < 1.046{
+            self.rotation_index = 0;
+        }
+        else if true_angle < 2.355{
+            self.rotation_index = 1;
+        }
+        else if true_angle < 3.925{
+            self.rotation_index = 2;
+        }
+        else{
+            self.rotation_index = 3;
         }
     }
 
@@ -228,21 +282,21 @@ impl BoundingBox{
 }
 
 #[derive(Component, Default, Reflect, Clone)]
-struct NodeIndex{
-    i1: usize
+pub struct NodeIndex{
+    pub i1: usize
 }
 
 #[derive(Component, Default, Reflect, Clone)]
-struct ConnectionIndex{
-    i1: usize,
-    i2: usize
+pub struct ConnectionIndex{
+    pub i1: usize,
+    pub i2: usize
 }
 
 #[derive(Component, Default, Reflect, Clone)]
-struct TriangleIndex{
-    i1: u32,
-    i2: u32,
-    i3: u32,
+pub struct TriangleIndex{
+    pub i1: u32,
+    pub i2: u32,
+    pub i3: u32,
 }
 
 impl TriangleIndex{
@@ -251,15 +305,15 @@ impl TriangleIndex{
     }
 }
 
-fn vertices_to_sbnodes(piece_container: &PieceInfoContainer) -> Vec<SBNode>{
+pub fn vertices_to_sbnodes(piece_container: &PieceInfoContainer) -> Vec<SBNode>{
     return piece_container.vertices.iter().map(|vertex| SBNode::new(*vertex)).collect();
 }
 
-fn connections_to_sbconnections(piece_container: &PieceInfoContainer) -> Vec<SBConnection>{
+pub fn connections_to_sbconnections(piece_container: &PieceInfoContainer) -> Vec<SBConnection>{
     return piece_container.connections.iter().map(|connection| SBConnection::new(connection.0 as usize, connection.1 as usize, connection.2, connection.3)).collect();
 }
 
-fn triangles_to_triangleindex(piece_container: &PieceInfoContainer) -> Vec<TriangleIndex>{
+pub fn triangles_to_triangleindex(piece_container: &PieceInfoContainer) -> Vec<TriangleIndex>{
     return piece_container.triangle_connections.iter().map(|t_connection| TriangleIndex::new(t_connection.0, t_connection.1, t_connection.2)).collect();
 }
 
@@ -537,7 +591,7 @@ fn interact(
     }
 }
 
-fn create_soft_body_mesh(
+pub fn create_soft_body_mesh(
     nodes: &Vec<SBNode>,
     triangle_indices: &Vec<TriangleIndex>,
 ) -> Mesh{
@@ -582,7 +636,7 @@ fn spawn_sb(
     let connection_vec = connections_to_sbconnections(random_tetris_piece);
     let triangle_vec = triangles_to_triangleindex(random_tetris_piece);
 
-    let soft_body = SB::new(&node_vec, &connection_vec);
+    let soft_body = SB::new(&node_vec, &connection_vec, random_piece_index);
     let mesh_handle = meshes.add(create_soft_body_mesh(&node_vec, &triangle_vec));
 
     commands.spawn((
@@ -679,6 +733,23 @@ fn update_sb(
         sbObject.center = sbObject.get_center();
         sbObject.angle = sbObject.get_angle();
 
+        sbObject.update_rotation_index();
+        
+        if sbObject.angle_lock{
+            if sbObject.rotation_index == 0{
+                sbObject.angle = 0.0;
+            }
+            else if sbObject.rotation_index == 1{
+                sbObject.angle = 1.57;
+            }
+            else if sbObject.rotation_index == 2{
+                sbObject.angle = 3.14;
+            }
+            else{
+                sbObject.angle = -1.57;
+            }
+        }
+
         sbObject.update_skeleton();
     }
 }
@@ -770,12 +841,7 @@ fn skeleton_simulation(
             continue;
         }
 
-        // println!("skel_pos:{:?} node_pos:{:?} vec:{:?}", world_to_screen_coords(*skeleton_pos), world_to_screen_coords(node1.read_pos), Vec2::new(vec.x, -vec.y));
-
         let force = (SKELETON_STIFFNESS * -vec.length()).clamp(-1000.0, 1000.0);
-        // let force = 1.0;
-
-        // println!("pos {}", vec_norm);
 
         node1.vel -= vec_norm * force * dt * ITERATION_DELTA;
     }
@@ -787,7 +853,6 @@ fn update_sb_mesh(
 ) {
     for (soft_body, mesh_handle) in query.iter() {
         if let Some(mesh) = meshes.get_mut(&mesh_handle.0) {
-            // Update node positions dynamically (e.g., apply a simple oscillation for demonstration)
             let updated_positions: Vec<[f32; 3]> = soft_body
                 .nodes
                 .iter()

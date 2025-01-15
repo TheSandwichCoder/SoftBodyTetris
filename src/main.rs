@@ -7,11 +7,15 @@ use bevy::{
 use settings::*;
 use soft_body::*;
 use tetris_pieces::*;
+use tetris_board::*;
+use tetris_game::*;
 
 // CRATES
 mod settings;
 mod soft_body;
 mod tetris_pieces;
+mod tetris_board;
+mod tetris_game;
 
 #[derive(Component)]
 struct FpsText;
@@ -24,7 +28,7 @@ fn main() {
         .set(ImagePlugin::default_nearest())
         .set(WindowPlugin {
             primary_window: Some(Window{
-                title: "Ball Simulation".into(),
+                title: "Soft Body Tetris".into(),
                 resolution: (SCREENSIZE.x, SCREENSIZE.y).into(),
                 resizable:false,
                 ..default()
@@ -37,6 +41,7 @@ fn main() {
     .add_systems(Startup, setup)
     .add_systems(Update, text_update_system)
     .add_plugins(SBPlugin)
+    .add_plugins(TetrisGamePlugin)
     .run();
 }
 
