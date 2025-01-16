@@ -18,6 +18,7 @@ pub struct PieceInfoContainer{
     pub vertices: Vec<Vec2>,
     pub connections: Vec<(u8, u8, bool, f32)>,
     pub triangle_connections: Vec<(u32, u32, u32)>,
+    pub bb: u64,
 }
 
 impl PieceInfoContainer{
@@ -25,7 +26,8 @@ impl PieceInfoContainer{
         PieceInfoContainer{
             vertices: Vec::new(),
             connections: Vec::new(),
-            triangle_connections: Vec::new()
+            triangle_connections: Vec::new(),
+            bb: 0,
         }
     }
 }
@@ -179,6 +181,7 @@ pub fn get_mesh(vertices_bb: u64) -> PieceInfoContainer{
         vertices: vertices,
         connections: connections,
         triangle_connections: triangle_connections,
+        bb: vertices_bb,
     };
 }
 
@@ -213,10 +216,53 @@ pub fn create_tetris_pieces() -> TetrisPiecesInfo{
 }
 
 // 1 bb for 4 rotations for each piece type (counter clockwise)
-pub const piece_rotation_types : [[u64; 4]; 5] = [
-    [0b100000111, 0b100000001000000011, 0b11100000100, 0b110000000100000001],
-    [0b100000011, 0b1000000011, 0b1100000010, 0b1100000001],
-    [0b1000000111, 0b100000001100000010, 0b11100000010, 0b10000001100000001],
-    [0b11000000011, 0b10000001100000010, 0b11000000011, 0b10000001100000010],
-    [0b1111, 0b00000001000000010000000100000001, 0b1111, 0b00000001000000010000000100000001],
+pub const tetris_piece_types : [u64; 5] = [
+    0b100000111,
+    0b100000011,
+    0b1000000111,
+    0b11000000011,
+    0b1111,
 ];
+
+// piece rotation counter clockwise
+pub fn piece_bb_rotation_left(bb: u64) -> u64{
+    let mut rotated = 0u64;
+
+    for row in 0..8 {
+        for col in 0..8 {
+            let src_pos = row * 8 + col;
+
+            let dest_pos = (7 - col) * 8 + row;
+
+            let bit = (bb >> src_pos) & 1;
+
+            rotated |= bit << dest_pos;
+        }
+    }
+
+    let hor_bitboard:u64 = 0x101010101010101;
+    let ver_bitboard: u64 = 255;
+
+    // println!()
+
+    while rotated & ver_bitboard == 0{
+        rotated >>= 8;
+    }
+
+    while rotated & hor_bitboard == 0{
+        rotated >>= 1;
+    }
+
+    return rotated;
+}
+
+// ccw
+pub fn full_piece_bb_rotation(bb: u64, rotation_index: u8) -> u64{
+    let mut rotated_bitboard = bb;
+
+    for i in 0..(4-rotation_index){
+        rotated_bitboard = piece_bb_rotation_left(rotated_bitboard);
+    }
+
+    return rotated_bitboard
+}

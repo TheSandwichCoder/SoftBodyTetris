@@ -42,7 +42,14 @@ fn tetris_piece_update(
 
     let mut id_counter = 0;
     for sb in &soft_body_query{
-        tetris_board.add(piece_rotation_types[sb.piece_type][sb.rotation_index], sb.bounding_box.min_pos, id_counter);
+
+        // make sure that the block is atleast decenty aligned
+        if sb.get_angle_lock_confidence() > 0.1{
+            id_counter += 1;
+            continue;
+        }
+
+        tetris_board.add(full_piece_bb_rotation(sb.piece_bb, sb.rotation_index as u8), sb.bounding_box.min_pos, id_counter);
         
         id_counter += 1;
     }
@@ -50,6 +57,8 @@ fn tetris_piece_update(
     tetris_board.display();
 }
 
+// doesnt actually clear the line and only 
+// finds the line that needs to be cleared
 fn tetris_line_clear_update(
     mut tetris_board: ResMut<TetrisBoard>,
     soft_body_query: Query<&SB>,
@@ -83,7 +92,7 @@ fn tetris_line_clear_update(
                 println!("{:?}", clear_pieces_index);
                 
                 // we can only handle 1 clear at once, 
-                // but this shouldnt be that big of a problem
+                // but this shouldnt be that big of a problem... hopefully
                 break;
             }
             counter = 0;
@@ -108,7 +117,7 @@ fn tetris_piece_clear_update(
     for index in &tetris_board.cleared_pieces_index{
         let soft_body = sb_vector[*index as usize];
 
-        let piece_bb = piece_rotation_types[soft_body.piece_type][soft_body.rotation_index];
+        let piece_bb = full_piece_bb_rotation(soft_body.piece_bb, soft_body.rotation_index as u8);
         
         
         // gets the rel piece pos
@@ -117,12 +126,26 @@ fn tetris_piece_clear_update(
 
         println!("PIECE POS INFO: min_pos {}, board_pos {}", soft_body.bounding_box.min_pos, piece_board_pos);
 
-        let rel_y = piece_board_pos / BOARD_WIDTH - tetris_board.cleared_y_level as i32;
+        let mut rel_y = tetris_board.cleared_y_level as i32 - piece_board_pos / BOARD_WIDTH;
+
+        // something went wrong and 
+        // I'm too lazy to find the bug
+        if rel_y < 0{
+            println!("uh oh something went wrong");
+            
+            rel_y = 0;
+        }
 
         println!("PIECE MESH GENERATING: rel clear:{}", rel_y);
         print_bb(piece_bb);
 
-        let new_bb = piece_bb & !(255 << (rel_y * 8));
+        let mut new_bb = piece_bb & !(255 << (rel_y * 8));
+
+        // split along the middle resulting in 2 segments
+        // when this happens I give up on life and choose a new career
+        if bb_segments(new_bb) > 1{
+            new_bb &= 255;
+        }
         
         print_bb(new_bb);
 
@@ -158,7 +181,7 @@ fn tetris_piece_spawn_update(
         let spawned_tetris_piece_info = &tetris_board.spawn_pieces_vec[counter];
 
         // null tetris piece (full clear)
-        if spawned_tetris_piece_info.vertices.len() == 0{
+        if spawned_tetris_piece_info.bb == 0{
             counter += 1;
             continue;
         }
@@ -176,11 +199,11 @@ fn tetris_piece_spawn_update(
         let connection_vec = connections_to_sbconnections(spawned_tetris_piece_info);
         let triangle_vec = triangles_to_triangleindex(spawned_tetris_piece_info);
 
-        let mut soft_body = SB::new(&node_vec, &connection_vec, prev_tetris_piece.piece_type, prev_tetris_piece.color_index);
+        let mut soft_body = SB::new(&node_vec, &connection_vec, spawned_tetris_piece_info.bb, prev_tetris_piece.color_index);
 
         println!("move piece id:{} min:{} max:{}", counter, prev_tetris_piece.bounding_box.min_pos, prev_tetris_piece.bounding_box.max_pos);
 
-        soft_body.move_softbody(prev_tetris_piece.bounding_box.min_pos);
+        soft_body.move_softbody(vec2_round_down(prev_tetris_piece.bounding_box.min_pos));
         let mesh_handle = meshes.add(create_soft_body_mesh(&node_vec, &triangle_vec));
 
         let piece_color = tetris_pieces_info.colors[prev_tetris_piece.color_index];
@@ -190,7 +213,7 @@ fn tetris_piece_spawn_update(
                 mesh: mesh_handle.into(),
                 material: materials.add(ColorMaterial::from(piece_color)),
                 transform: Transform{
-                    translation: Vec3::new(0.0, 0.0, 0.0),
+                    translation: Vec3::ZERO,
                     ..default()
                 },
                 ..default()
@@ -270,4 +293,32 @@ fn print_bb(n: u64){
             println!();
         }
     }
+}
+
+fn vec2_round_down(vec: Vec2) -> Vec2{
+    (vec.as_ivec2() / DEFAULT_RESTING_LENGTH as i32).as_vec2() * DEFAULT_RESTING_LENGTH
+}
+
+// counts the number of distinct "islands" in a bb
+fn bb_segments(bb: u64) -> u8{
+    
+    let mut idk_what_to_name_this: bool = true;
+    let mut segment_counter: u8 = 0;
+
+    for i in 0..8{
+
+        if bb & 255 << (i * 8) == 0{
+            idk_what_to_name_this = true;
+        }
+
+        // hit land
+        else{
+            if idk_what_to_name_this{
+                segment_counter += 1;
+                idk_what_to_name_this = false;
+            }
+        }
+    }
+
+    return segment_counter
 }

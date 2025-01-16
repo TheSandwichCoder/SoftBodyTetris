@@ -55,13 +55,43 @@ impl TetrisBoard{
         let piece_x = (rel_piece_pos.x / DEFAULT_RESTING_LENGTH) as i32;
         let piece_y = (rel_piece_pos.y / DEFAULT_RESTING_LENGTH) as i32;
 
-        for x_offset in 0..8{
-            for y_offset in 0..8{
-                if piece_bb & 1 << (y_offset * 8 + x_offset) != 0{
-                    self.board[flatten(piece_x + x_offset, piece_y + y_offset) as usize] = piece_index;
-                }
+        let mut piece_bb_copy = piece_bb;
+
+        // a check to make sure its reasonable
+        while piece_bb_copy != 0{
+            let index = piece_bb_copy.trailing_zeros() as i32;
+
+            let x_offset = index % 8;
+            let y_offset = index / 8;
+
+            // there is already something there (meaning that we are squeezing pieces)
+            if self.board[flatten(piece_x + x_offset, piece_y + y_offset) as usize] != 255{
+                return;
             }
+
+            piece_bb_copy ^= 1 << index;
         }
+
+        piece_bb_copy = piece_bb;
+        
+        while piece_bb_copy != 0{
+            let index = piece_bb_copy.trailing_zeros() as i32;
+
+            let x_offset = index % 8;
+            let y_offset = index / 8;
+
+            self.board[flatten(piece_x + x_offset, piece_y + y_offset) as usize] = piece_index;
+
+            piece_bb_copy ^= 1 << index;
+        }
+
+        // for x_offset in 0..8{
+        //     for y_offset in 0..8{
+        //         if piece_bb & 1 << (y_offset * 8 + x_offset) != 0{
+        //             self.board[flatten(piece_x + x_offset, piece_y + y_offset) as usize] = piece_index;
+        //         }
+        //     }
+        // }
     }
 
     pub fn display(&self){
