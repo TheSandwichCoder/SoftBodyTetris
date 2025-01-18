@@ -12,6 +12,7 @@ use crate::settings::*;
 use crate::tetris_pieces::*;
 use crate::tetris_board::*;
 use crate::soft_body::*;
+use crate::particles::*;
 use crate::functions::*;
 
 
@@ -87,8 +88,11 @@ fn game_loop_update(
         let connection_vec = connections_to_sbconnections(random_tetris_piece);
         let triangle_vec = triangles_to_triangleindex(random_tetris_piece);
 
-        let soft_body = SB::new(&node_vec, &connection_vec, tetris_piece_types[random_piece_index], random_color_index, SB_SPAWN_POS);
+        let mut soft_body = SB::new(&node_vec, &connection_vec, tetris_piece_types[random_piece_index], random_color_index, Vec2::ZERO);
+
         let mesh_handle = meshes.add(create_soft_body_mesh(&node_vec, &triangle_vec));
+
+        soft_body.move_softbody(SB_SPAWN_POS);
 
         game_info.movable_piece_id = soft_body.id;
 
@@ -97,7 +101,7 @@ fn game_loop_update(
                 mesh: mesh_handle.into(),
                 material: materials.add(ColorMaterial::from(random_color)),
                 transform: Transform{
-                    translation: Vec3::new(0.0, 0.0, 0.0),
+                    translation: Vec3::ZERO,
                     ..default()
                 },
                 ..default()
@@ -146,6 +150,7 @@ fn game_loop_update(
         game_info.piece_pos = Vec2::new(0.0, HALF_DIM.y);
         game_info.piece_angle = 0.0;
     }
+
     else{
         let mut selected_piece = sb_query.iter_mut().find(|sb| sb.id == game_info.movable_piece_id).unwrap();
 
@@ -273,6 +278,8 @@ fn tetris_line_clear_update(
 fn tetris_piece_clear_update(
     mut tetris_board: ResMut<TetrisBoard>,
     soft_body_query: Query<&SB>,
+    tetris_pieces_info: Res<TetrisPiecesInfo>,
+    mut particle_spawn_buffer: ResMut<SpawnParticleBuffer>,
 ){
     let sb_vector: Vec<&SB> = soft_body_query.iter().collect();
 
@@ -303,7 +310,7 @@ fn tetris_piece_clear_update(
         }
 
         // println!("PIECE MESH GENERATING: rel clear:{}", rel_y);
-        print_bb(piece_bb);
+        // print_bb(piece_bb);
 
         let mut new_bb = piece_bb & !(255 << (rel_y * 8));
 
@@ -313,7 +320,7 @@ fn tetris_piece_clear_update(
             new_bb &= 255;
         }
         
-        print_bb(new_bb);
+        // print_bb(new_bb);
 
         // not a full clear
         if new_bb != 0{
@@ -321,6 +328,10 @@ fn tetris_piece_clear_update(
         }
         else{
             spawn_piece_vec.push(PieceInfoContainer::empty());
+        }
+
+        for i in 0..PARTICLE_CLUSTER_SIZE{
+            particle_spawn_buffer.spawn_particles.push(TetrisParticle::rand(soft_body.center, tetris_pieces_info.colors[soft_body.color_index]));
         }
 
         // println!("added mesh");
@@ -352,7 +363,7 @@ fn tetris_piece_spawn_update(
             continue;
         }
 
-        let mut prev_tetris_piece = soft_body_query.iter().next().unwrap();
+        let mut prev_tetris_piece = soft_body_query.iter().next().unwrap();    
 
         for sb in &soft_body_query{
             if *tetris_piece_id == sb.id{

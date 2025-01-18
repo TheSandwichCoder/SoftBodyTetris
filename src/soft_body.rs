@@ -18,7 +18,7 @@ pub struct SBPlugin;
 impl Plugin for SBPlugin{
     fn build(&self, app: &mut App){
         app
-        .add_systems(Update, (update_processes, update_sb_draw, update_sb_mesh, interact));
+        .add_systems(Update, (update_processes, update_sb_draw, update_sb_mesh));
     }
 }
 
@@ -655,7 +655,7 @@ pub fn create_soft_body_mesh(
     let mut positions = Vec::new(); // Vertex positions
     let mut indices : Vec<u32> = Vec::new();   // Indices for triangles
 
-    positions.extend(nodes.iter().map(|node| [node.read_pos.x, node.read_pos.y, 0.0]));
+    positions.extend(nodes.iter().map(|node| [node.read_pos.x, node.read_pos.y, 1.0]));
 
     for triangle_index in triangle_indices{
         indices.push(triangle_index.i1);
@@ -666,6 +666,7 @@ pub fn create_soft_body_mesh(
     let mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default())
         .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
         .with_inserted_indices(Indices::U32(indices));
+
     mesh
 }
 

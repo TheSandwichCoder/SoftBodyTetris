@@ -10,6 +10,7 @@ use tetris_pieces::*;
 use tetris_board::*;
 use tetris_game::*;
 use functions::*;
+use particles::*;
 
 // CRATES
 mod settings;
@@ -18,6 +19,7 @@ mod tetris_pieces;
 mod tetris_board;
 mod tetris_game;
 mod functions;
+mod particles;
 
 #[derive(Component)]
 struct ScoreText;
@@ -45,6 +47,7 @@ fn main() {
     .add_systems(Update, text_update_system)
     .add_plugins(SBPlugin)
     .add_plugins(TetrisGamePlugin)
+    .add_plugins(ParticlePlugin)
     .run();
 }
 

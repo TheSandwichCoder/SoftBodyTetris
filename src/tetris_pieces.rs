@@ -54,7 +54,7 @@ pub fn get_mesh(vertices_bb: u64) -> PieceInfoContainer{
         let vertex_present = ((vertices_bb >> flatten(x, y)) & 1) == 1;
         
         if vertex_present{
-            println!("i:{}",i+9);
+            // println!("i:{}",i+9);
             first_i = i+9;
             
 
@@ -65,7 +65,7 @@ pub fn get_mesh(vertices_bb: u64) -> PieceInfoContainer{
         }
     }
 
-    println!("vertices_point_bb: {:b}", vertices_point_bb);
+    // println!("vertices_point_bb: {:b}", vertices_point_bb);
 
     let mut curr_i = first_i;
     let mut prev_i = curr_i;
@@ -93,7 +93,7 @@ pub fn get_mesh(vertices_bb: u64) -> PieceInfoContainer{
         let mut curr_x = curr_i % 8;
         let mut curr_y = curr_i / 8;
 
-        println!("x:{} y:{}", curr_x, curr_y);
+        // println!("x:{} y:{}", curr_x, curr_y);
 
         if (vertices_point_bb_copy >> flatten(curr_x + horizontal_offset, curr_y)) & 1 == 1{
             vertices.push(Vec2::new(curr_x as f32 * DEFAULT_RESTING_LENGTH, curr_y as f32 * DEFAULT_RESTING_LENGTH));
@@ -208,7 +208,7 @@ pub fn create_tetris_pieces() -> TetrisPiecesInfo{
     ];
 
     return TetrisPiecesInfo{
-        pieces: vec![piece_type_L, piece_type_miniL, piece_type_longt, piece_type_s, piece_type_long], //, piece_type_miniL, piece_type_longt, piece_type_s, piece_type_long],
+        pieces: vec![piece_type_L, piece_type_miniL, piece_type_longt, piece_type_s, piece_type_long], 
         colors: colors,
         piece_num: 5,
         color_num: 7,
