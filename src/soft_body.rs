@@ -11,14 +11,14 @@ use rand::Rng;
 use crate::settings::*;
 use crate::tetris_pieces::*;
 use crate::tetris_board::*;
+use crate::functions::*;
 
 pub struct SBPlugin;
 
 impl Plugin for SBPlugin{
     fn build(&self, app: &mut App){
         app
-        .add_systems(Update, (spawn_sb, update_processes, update_sb_draw, update_sb_mesh))
-        .add_systems(Update, interact);
+        .add_systems(Update, (update_processes, update_sb_draw, update_sb_mesh, interact));
     }
 }
 
@@ -60,7 +60,7 @@ pub struct SB{
 }
 
 impl SB{
-    pub fn new(nodes: &Vec<SBNode>, connections: &Vec<SBConnection>, piece_bb: u64, color_index: usize) -> Self{
+    pub fn new(nodes: &Vec<SBNode>, connections: &Vec<SBConnection>, piece_bb: u64, color_index: usize, move_pos_thing: Vec2) -> Self{
         let node_num : u8 = nodes.len() as u8; 
 
         let mut center = Vec2::ZERO;
@@ -103,6 +103,7 @@ impl SB{
         };
 
         sb.update_skeleton();
+        sb.move_softbody(move_pos_thing);
 
         return sb;
     }
@@ -181,7 +182,7 @@ impl SB{
         return average_angle;
     }
 
-    fn update_skeleton(&mut self){
+    pub fn update_skeleton(&mut self){
         let mut counter: usize = 0;
 
         self.angle_lock_timer -= 1;
@@ -238,6 +239,38 @@ impl SB{
         let closest_locked_angle = (true_angle + 78) / quart_angle * quart_angle;
 
         return ((true_angle - closest_locked_angle) as f32 / quart_angle as f32).abs();
+    }
+
+    // this is a better name
+    pub fn get_grid_align_confidence(&self) -> f32{
+        
+        // let mut confidence: f32 = 0.0;
+        // for node in &self.nodes{
+        //     // these are screen coordinates (kindof)
+        //     let adjusted_pos = node.read_pos + Vec2::new(DEFAULT_RESTING_LENGTH/2.0, DEFAULT_RESTING_LENGTH/2.0);
+
+        //     let closest_grid_pos = vec2_round_down(adjusted_pos);
+
+        //     // println!("read:{} grid:{} confidence:{}", node.read_pos, closest_grid_pos, (closest_grid_pos - node.read_pos).length_squared() / (DEFAULT_RESTING_LENGTH*DEFAULT_RESTING_LENGTH/4.0));
+
+        //     // distance from closest point / max distance from closest point
+        //     confidence += (closest_grid_pos - node.read_pos).length_squared() / (DEFAULT_RESTING_LENGTH*DEFAULT_RESTING_LENGTH/2.0);
+        // }
+
+        let mut confidence: f32 = 0.0;
+
+        let rel_piece_pos = self.bounding_box.min_pos + HALF_DIM + Vec2::new(DEFAULT_RESTING_LENGTH/2.0, DEFAULT_RESTING_LENGTH/2.0);
+
+        let grid_pos = (rel_piece_pos / DEFAULT_RESTING_LENGTH).as_ivec2().as_vec2() * DEFAULT_RESTING_LENGTH;
+
+        // let piece_x = (rel_piece_pos.x / DEFAULT_RESTING_LENGTH) as i32;
+        // let piece_y = (rel_piece_pos.y / DEFAULT_RESTING_LENGTH) as i32;
+
+        // println!("rel: {} grid: {}", rel_piece_pos, grid_pos);
+
+        let confidence = (rel_piece_pos-grid_pos).length_squared() / (DEFAULT_RESTING_LENGTH * DEFAULT_RESTING_LENGTH);
+
+        return confidence;
     }
 
     fn update_bounding_box(&mut self){
@@ -660,7 +693,7 @@ fn spawn_sb(
     let connection_vec = connections_to_sbconnections(random_tetris_piece);
     let triangle_vec = triangles_to_triangleindex(random_tetris_piece);
 
-    let soft_body = SB::new(&node_vec, &connection_vec, tetris_piece_types[random_piece_index], random_color_index);
+    let soft_body = SB::new(&node_vec, &connection_vec, tetris_piece_types[random_piece_index], random_color_index, Vec2::ZERO);
     let mesh_handle = meshes.add(create_soft_body_mesh(&node_vec, &triangle_vec));
 
     commands.spawn((

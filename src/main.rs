@@ -9,6 +9,7 @@ use soft_body::*;
 use tetris_pieces::*;
 use tetris_board::*;
 use tetris_game::*;
+use functions::*;
 
 // CRATES
 mod settings;
@@ -16,13 +17,15 @@ mod soft_body;
 mod tetris_pieces;
 mod tetris_board;
 mod tetris_game;
+mod functions;
 
 #[derive(Component)]
-struct FpsText;
+struct ScoreText;
 
 
 fn main() {
     App::new()
+    .insert_resource(ClearColor(Color::srgb(0.1, 0.1, 0.1)))
     .add_plugins((
         DefaultPlugins
         .set(ImagePlugin::default_nearest())
@@ -67,7 +70,7 @@ fn setup(mut commands: Commands,
     commands.spawn((
         TextBundle::from_sections([
             TextSection::new(
-                "FPS: ",
+                "Score: ",
                 TextStyle {
                     font_size: 30.0,
                     ..default()
@@ -81,23 +84,32 @@ fn setup(mut commands: Commands,
                 }
             ),
         ]),
-        FpsText,
+        ScoreText,
     ));
+
+    // thanks ChatGPT!
+    commands.spawn(SpriteBundle {
+        sprite: Sprite {
+            color: Color::WHITE,           // Line color
+            custom_size: Some(Vec2::new(SCREENSIZE.x, 5.0)), // Line width and thickness
+            ..Default::default()
+        },
+        transform: Transform {
+            translation: Vec3::new(0.0, AUTO_DROP_LEVEL, -10.0), // Center of the screen
+            ..Default::default()
+        },
+        ..Default::default()
+    });
 }
 
 
 fn text_update_system(
-    diagnostics: Res<DiagnosticsStore>,
-    mut fps_text : Query<&mut Text, With<FpsText>>,
+    mut score_text : Query<&mut Text, With<ScoreText>>,
+    mut score_info: Res<ScoreInfo>,
     
 ) {
-    let mut fps_text = fps_text.single_mut();
+    let mut score_text = score_text.single_mut();
 
-    if let Some(fps) = diagnostics.get(&FrameTimeDiagnosticsPlugin::FPS) {
-        if let Some(value) = fps.smoothed() {
-            // Update the value of the second section
-            fps_text.sections[1].value = format!("{:.2}", value);
-        }
-    }
-
+    // Update the value of the second section
+    score_text.sections[1].value = format!("{:.2}", score_info.curr_score);
 }

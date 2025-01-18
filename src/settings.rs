@@ -23,8 +23,11 @@ pub const TAU :f32 = PI * 2.0;
 
 pub const COLOR_SHADING: f32 = 0.1;
 
-pub const ANGLE_LOCK_COUNTDOWN : i32 = 60 * 40;
+pub const ANGLE_LOCK_COUNTDOWN : i32 = 60 * 5;
 
 pub const BOARD_WIDTH: i32 = (SCREENSIZE.x / DEFAULT_RESTING_LENGTH) as i32;
 pub const BOARD_HEIGHT: i32 =  (SCREENSIZE.y / DEFAULT_RESTING_LENGTH) as i32;
 pub const BOARD_SIZE: usize = (BOARD_WIDTH * BOARD_HEIGHT) as usize; 
+pub const AUTO_DROP_LEVEL: f32 = -150.0;
+
+pub const SB_SPAWN_POS: Vec2 = Vec2::new(0.0, HALF_DIM.y);
