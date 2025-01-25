@@ -30,6 +30,8 @@ pub const BOARD_HEIGHT: i32 =  (SCREENSIZE.y / DEFAULT_RESTING_LENGTH) as i32;
 pub const BOARD_SIZE: usize = (BOARD_WIDTH * BOARD_HEIGHT) as usize; 
 pub const AUTO_DROP_LEVEL: f32 = -150.0;
 
+pub const LOSE_LEVEL: f32 = 150.0;
+
 pub const SB_SPAWN_POS: Vec2 = Vec2::new(0.0, HALF_DIM.y - 50.0);
 
 pub const PARTICLE_CLUSTER_SIZE: i32 = 10;

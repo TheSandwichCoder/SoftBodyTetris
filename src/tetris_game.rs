@@ -15,6 +15,12 @@ use crate::soft_body::*;
 use crate::particles::*;
 use crate::functions::*;
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default, States)]
+pub enum GameState {
+    #[default]
+    Playing,
+    GameOver,
+}
 
 #[derive(Resource)]
 pub struct ScoreInfo{
@@ -50,6 +56,7 @@ impl Plugin for TetrisGamePlugin{
             curr_score: 0,
             best_score: 0,
         })
+        .init_state::<GameState>()
         .insert_resource(create_tetris_board())
         .insert_resource(create_tetris_pieces())
         .insert_resource(GameStateInfo::empty())
@@ -59,10 +66,25 @@ impl Plugin for TetrisGamePlugin{
             tetris_line_clear_update, 
             tetris_piece_clear_update, 
             tetris_piece_spawn_update, 
-            tetris_piece_remove_update
-        ).chain());
+            tetris_piece_remove_update,
+            game_end_update
+        ).chain().run_if(in_state(GameState::Playing)));
     }
 }
+
+fn game_end_update(
+    sb_query: Query<&SB>,
+    current_state: Res<State<GameState>>,
+    mut next_state: ResMut<NextState<GameState>>
+){
+    for sb in &sb_query{
+        // end the game if it is angle locked and above the lose level
+        if sb.angle_lock_timer <= 0 && sb.bounding_box.min_pos.y > LOSE_LEVEL{
+            next_state.set(GameState::GameOver);
+        }
+    }
+}
+
 
 fn game_loop_update(
     mut commands: Commands,
